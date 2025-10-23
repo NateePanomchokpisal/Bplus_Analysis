@@ -1,0 +1,105 @@
+/*
+In SKUMASTER
+SKU_KEY = Primary Key 
+SKU_CODE = Sub-Primary key (setting by Maboonyong)
+SKU_NAME = The Name of items
+SKU_MIN_QTY = The quantity of items that suggest we should fill their items if it's below or equal this number
+SKU_LAST_UCCOST = The newest cost of items
+SKU_STD_COST = The average cost of items
+SKU_ENABLE = Is it enable or not (Filtering it only 'Y' value)
+
+In SKUMOVE
+SKM_SKU = Primary Key
+SKM_QTY = The transaction of quantity if it's minus that means the transaction is Sell, and if it's plus that means the transaction is Purchase
+SKM_WL = Items hold at (NO,VAT or DONTUSE) if this variable as 1 it's on DONTUSE, if this variable as 101 it's on NO and otherwise 102 as VAT
+SKM_COST = The cost of their items
+*/
+
+SELECT 
+--
+SKUMASTER.SKU_CODE,
+SKUMASTER.SKU_NAME,
+SKUMASTER.SKU_MIN_QTY,
+--SKUMOVE_GROUPED.SKM_SKU,
+SKUMOVE_GROUPED.SKM_QTY1,
+SKUMOVE_GROUPED.SKM_COST1
+-- left side is SKUMASTER
+FROM SKUMASTER
+-- right side is SKUMOVE
+-- Optimized it with sub-query groupby
+LEFT JOIN (
+ SELECT SKM_SKU,
+ SUM(SKM_QTY) AS SKM_QTY1,
+ SUM(SKM_COST) AS SKM_COST1
+  FROM SKUMOVE
+  GROUP BY SKM_SKU
+  ) AS SKUMOVE_GROUPED
+ON SKUMASTER.SKU_KEY = SKUMOVE_GROUPED.SKM_SKU
+-- filtering where are actual quantity< predicting quantity and predicting quantity should more than 1
+WHERE SKM_QTY1< SKU_MIN_QTY
+AND SKU_MIN_QTY>1
+
+/*
+The difference between built-in function WHERE and HAVING, it's about operate before or after GROUP BY.
+If use filter before GROUP BY statement that must use WHERE with unaggregate function,
+therefore after GROUP BY it must use HAVING with aggregate function on SQL statement. 
+"EXAMPLE"
+*/
+
+SELECT SKM_SKU, COUNT(SKM_KEY) AS COUNTED 
+FROM SKUMOVE
+WHERE SKM_WL = 101 
+GROUP BY SKM_SKU
+HAVING COUNT(SKM_KEY) < 100
+
+
+/* Find the demand of each product comparing by YOY
+Use the table SKUMASTER and SKUMOVE
+with create datetime on SKUMASTER.SKU_LAST_COMMIT
+*/
+SELECT 
+SKUMASTER.SKU_CODE,
+SKUMASTER.SKU_NAME,
+SKUMASTER.SKU_LAST_COMMIT AS DATE_STAMP,
+--SKUMOVE_GROUPED.SKM_SKU,
+SKUMOVE_GROUPED.SKM_QTY1,
+SKUMOVE_GROUPED.SKM_COST1
+-- left side is SKUMASTER
+FROM SKUMASTER
+-- right side is SKUMOVE
+-- Optimized it with sub-query groupby
+LEFT JOIN (
+ SELECT SKM_SKU,
+ SUM(SKM_QTY) AS SKM_QTY1,
+ SUM(SKM_COST) AS SKM_COST1
+  FROM SKUMOVE
+  GROUP BY SKM_SKU
+  ) AS SKUMOVE_GROUPED
+ON SKUMASTER.SKU_KEY = SKUMOVE_GROUPED.SKM_SKU
+WHERE SKUMASTER.SKU_LAST_COMMIT >  '2/4/2025'
+AND SKU_CODE = 'ST*'
+
+
+==========================
+Focus on the amount of demand by counting
+(Excluding the other product such as hardware product)
+
+The columns which it involved
+DOCINFO.DI_REF = Document Number
+DOCINFO.DI_DATE = Document Date
+TRANSTKD.TRD_SH_CODE = Product code
+TRANSTKD.TRD_SH_NAME = Product name
+TRANSTKD.TRD_QTY = Product quantity
+TRANSTKD.TRD_UTQNAME = The Unit name of a product
+TRANSTKD.TRD_REFER_REF = No of Document
+TRANSTKD.TRD_REFER_DATE = Date of Document
+TRANSTKD.TRD_SH_UPRC = Price of each item
+ICCAT.ICCAT_CODE = The group code of product
+ICCAT.ICCAT_NAME = the group name of product
+SKUMASTER.SKU_CODE = 
+SKUMASTE.SKU_NAME
+
+
+Connection (Not yet to complete)
+1. SKUMASTER JOIN ICCAT ON SKUMASTER.SKU_ICCAT =  ICCAT.ICCAT_KEY
+2. TRANSTKD JOIN (Subquary) ON TRANSTKD.TRD_SH_CODE = SKUMASTER.SKU_CODE
