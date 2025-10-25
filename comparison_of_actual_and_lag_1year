@@ -1,0 +1,57 @@
+SELECT 
+-- The columns with actual using
+month_number,
+year_number,
+-- window function lag 1 year peried
+ABS(LAG(SUM(SKM_QTY), 1) OVER(PARTITION BY month_number ORDER BY year_number)) lag_one_year,
+-- window function with actual period
+ABS(SUM(SKM_QTY)) previous,
+-- window function with the difference value between actaul and lag 1 year period
+ABS(SUM(SKM_QTY) - LAG(SUM(SKM_QTY), 1) OVER (PARTITION BY month_number ORDER BY year_number)) AS difference,
+-- Percentage of the difference value
+ROUND(((SUM(SKM_QTY) - LAG(SUM(SKM_QTY), 1) OVER (PARTITION BY month_number ORDER BY year_number)) / LAG(SUM(SKM_QTY), 1) OVER (PARTITION BY month_number ORDER BY year_number)) * 100, 2) AS yoy_growth_percentage
+FROM (
+    -- Sub query connecting DOCINFO with SKUJOiED
+    SELECT 
+    DOCINFO.DI_REF,
+    DOCINFO.DI_DATE,
+    MONTH(DOCINFO.DI_DATE) month_number,
+    YEAR(DOCINFO.DI_DATE) year_number,
+    SKUJOINED.SKM_QTY,
+    SKUJOINED.ICCAT_CODE
+    FROM DOCINFO
+    LEFT JOIN (
+        -- Sub query connecting between SKUMOVE and SKUMASTER
+        SELECT
+        SKUMOVE.SKM_DI SKM_DI,
+        SKUMOVE.SKM_QTY SKM_QTY,
+        SKUMASTERIC.SKU_CODE SKU_CODE, 
+        SKUMASTERIC.SKU_NAME SKU_NAME,
+        SKUMASTERIC.ICCAT_CODE ICCAT_CODE,
+        SKUMASTERIC.ICCAT_NAME ICCAT_NAME
+        FROM SKUMOVE 
+        LEFT JOIN (
+            -- Sub query connecting between SKUMASTER and ICCAT
+            SELECT
+            SKUMASTER.SKU_KEY SKU_KEY,
+            SKUMASTER.SKU_CODE SKU_CODE, 
+            SKUMASTER.SKU_NAME SKU_NAME,
+            ICCAT.ICCAT_CODE ICCAT_CODE, 
+            ICCAT.ICCAT_NAME ICCAT_NAME
+            FROM SKUMASTER
+            LEFT JOIN ICCAT ON SKUMASTER.SKU_ICCAT = ICCAT.ICCAT_KEY
+        ) SKUMASTERIC
+        ON SKUMOVE.SKM_SKU = SKUMASTERIC.SKU_KEY 
+    ) SKUJOINED
+    ON DOCINFO.DI_KEY = SKUJOINED.SKM_DI
+    WHERE SKUJOINED.ICCAT_CODE NOT LIKE '9%'
+    AND SKUJOINED.ICCAT_CODE NOT LIKE '7%'
+    AND SKUJOINED.ICCAT_CODE NOT LIKE '6%' 
+    AND DOCINFO.DI_REF LIKE 'งส%' OR DOCINFO.DI_REF LIKE 'คด%'
+) REPORTED
+GROUP BY 
+REPORTED.year_number,
+REPORTED.month_number
+ORDER BY
+REPORTED.year_number DESC, 
+REPORTED.month_number DESC
